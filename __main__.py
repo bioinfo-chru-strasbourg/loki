@@ -14,7 +14,6 @@
 import argparse
 import sys
 import os
-import logging as log
 import textwrap
 import commons
 import json_manager
