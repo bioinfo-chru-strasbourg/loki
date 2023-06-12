@@ -7,7 +7,7 @@ import sys
 import time
 
 
-def set_logger_info(args):
+def set_logger_info():
     mylog = log.getLogger()
     log_file = mylog.handlers[0].baseFilename
     info_file = log_file.replace(".log", ".info")
@@ -43,7 +43,7 @@ Time run: {delta}"""
 
 
 def logger_header(log_file):
-    logging = f"""#########################
+    logging = """#########################
 #         -loki-        #
 # Author: Mateusz Rauch #
 #########################
@@ -57,15 +57,14 @@ def logger_header(log_file):
         write_file.write(logging)
 
 
-def set_log_level(args):
+def set_log_level(args, parsed_json):
     verbosity = args.verbosity
-    json = args.json
+    json = parsed_json
     output = args.output
     json_names = ""
 
-    for json_file in json:
-        json_name = json_file.split("/")[-1].split(".")[0]
-        json_names = f"{json_names}_{json_name}"
+    json_name = json.split("/")[-1].split(".")[0]
+    json_names = f"{json_names}_{json_name}"
 
     time_seconds = time.time() + 7200
     local_time = time.localtime(time_seconds)

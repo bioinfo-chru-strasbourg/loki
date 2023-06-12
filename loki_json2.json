@@ -1,0 +1,14 @@
+{
+    "general": {
+        "module": "stark",
+        "type": "validation"
+    },
+    "input": {
+        "dataset": "HORIZON_CAPTURE",
+        "application": "SOMATIC",
+        "design": "GOMV1_GERMLINE_v2",
+        "analyse": "no",
+        "noregres1": "",
+        "noregres2": ""
+    }
+}

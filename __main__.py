@@ -17,16 +17,21 @@ import os
 import textwrap
 import commons
 import json_manager
+import time
+import logging as log
 
 # Il faut que le script crée un directory de test pour pytest
 
 
 def main(args):
     original_umask = os.umask(0o000)
-    commons.set_log_level(args)
-    commons.set_logger_info(args)
-    json_manager.read(args)
-    commons.set_logger_info(args)
+    input_json = args.json
+    for parsed_json in input_json:
+        commons.set_log_level(args, parsed_json)
+        commons.set_logger_info()
+        json_manager.read(parsed_json, args.output)
+        commons.set_logger_info()
+        time.sleep(1)
     os.umask(original_umask)
 
 
@@ -56,7 +61,7 @@ def parse_args():
         "--json",
         required=True,
         type=str,
-        help="path to one or many json files containing all informations about the analysis and validation process",
+        help="path to one or many json files delimited with space containing all informations about the analysis and validation process",
         nargs="*",
     )
     main_parser.add_argument(
