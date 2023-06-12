@@ -3,4 +3,3 @@ loki_json2.json
 __pycache__
 .pytest_cache
 logs
-loki_config/

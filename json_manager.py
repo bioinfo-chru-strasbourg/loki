@@ -24,7 +24,7 @@ def read(parsed_json, output):
             [
                 tests_folder,
                 "-vsrA",
-                "--json",
+                "--jsonvalue",
                 parsed_json,
                 "--capture",
                 "sys",

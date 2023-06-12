@@ -5,9 +5,18 @@ from os.path import join as osj
 import logging as log
 
 
-def test_print_json(json):
-    log.info(json)
+class argjson:
+    def __init__(self, name):
+        self.name = name
+
+    def module(self):
+        print(self)
+        return self.module()
 
 
 def test_add():
     assert 2 + 2 == 5
+
+
+def test_module(jsonvalue):
+    print(jsonvalue)
