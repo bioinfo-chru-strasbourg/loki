@@ -29,7 +29,7 @@ def read(parsed_json, output):
                 "--capture",
                 "sys",
                 "--html",
-                f"{output}/logs/{date}_{os.path.basename(parsed_json).strip('_.json')}.html",
+                f"{output}/logs/{date}_{os.path.splitext(os.path.basename(parsed_json))[0]}.html",
                 "--self-contained-html",
             ]
         )
