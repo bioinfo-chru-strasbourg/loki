@@ -1,4 +1,5 @@
 import pytest
+import json
 
 
 def pytest_addoption(parser):
@@ -6,6 +7,13 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="session")
-def json(pytestconfig):
+def jsonvalue(pytestconfig):
     json_value = pytestconfig.getoption("--jsonvalue")
     return json_value
+
+
+@pytest.fixture(scope="session")
+def config(jsonvalue):
+    with open(jsonvalue, "r") as j:
+        data = json.loads(j.read())
+    return data

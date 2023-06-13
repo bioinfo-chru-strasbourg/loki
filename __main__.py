@@ -29,6 +29,7 @@ def main(args):
     for parsed_json in input_json:
         commons.set_log_level(args, parsed_json)
         commons.set_logger_info()
+        json_manager.json_checker(parsed_json)
         json_manager.read(parsed_json, args.output)
         commons.set_logger_info()
         time.sleep(1)
