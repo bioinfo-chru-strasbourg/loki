@@ -57,10 +57,9 @@ def logger_header(log_file):
         write_file.write(logging)
 
 
-def set_log_level(args, parsed_json):
+def set_log_level(args, parsed_json, output):
     verbosity = args.verbosity
     json = parsed_json
-    output = args.output
     json_names = ""
 
     json_name = json.split("/")[-1].split(".")[0]

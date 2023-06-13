@@ -12,13 +12,13 @@
 """
 
 import argparse
-import sys
 import os
 import textwrap
 import commons
 import json_manager
 import time
 import logging as log
+import json
 
 # Il faut que le script crée un directory de test pour pytest
 
@@ -27,10 +27,15 @@ def main(args):
     original_umask = os.umask(0o000)
     input_json = args.json
     for parsed_json in input_json:
-        commons.set_log_level(args, parsed_json)
+        with open(parsed_json, "r") as j:
+            data = json.loads(j.read())
+            output = data["general"]["output"]
+        if not output:
+            output = "."
+        commons.set_log_level(args, parsed_json, output)
         commons.set_logger_info()
-        json_manager.json_checker(parsed_json)
-        json_manager.read(parsed_json, args.output)
+        json_manager.check_loki_json(parsed_json)
+        json_manager.launch(parsed_json, output)
         commons.set_logger_info()
         time.sleep(1)
     os.umask(original_umask)
@@ -64,13 +69,6 @@ def parse_args():
         type=str,
         help="path to one or many json files delimited with space containing all informations about the analysis and validation process",
         nargs="*",
-    )
-    main_parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=".",
-        help="path to the wanted output, by default current directory",
     )
 
     args = main_parser.parse_args()

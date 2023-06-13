@@ -4,32 +4,32 @@ from os.path import join as osj
 import json
 import pytest
 import logging as log
-import subprocess
 
 
-def json_checker(parsed_json):
+def check_loki_json(parsed_json):
     with open(parsed_json, "r") as j:
         data = json.loads(j.read())
-    config_folder = data["general"]["config"]
-    results = data["input"]["results"]
-    analyse = data["input"]["analyse"]
-
-    if not os.path.isdir(config_folder):
+    if (
+        not data["input"]["noregres1"]
+        and not data["input"]["noregres2"]
+        and data["input"]["analyse"] == "yes"
+    ):
         log.error(
-            f"specified {config_folder} config folder does not exist, please verify it"
+            "Cannot launch regression process in case you don't have a first result"
         )
-        raise ValueError(config_folder)
+        raise ValueError()
+    elif (
+        not data["input"]["noregres1"]
+        or not data["input"]["noregres2"]
+        and data["input"]["analyse"] == "no"
+    ):
+        log.error(
+            "Cannot launch regression process in case you don't have a two results and you don't want any analysis"
+        )
+        raise ValueError()
 
-    if analyse != "no" and analyse != "yes":
-        log.error(f"{analyse} value must be yes or no, please verify it")
-        raise ValueError(analyse)
 
-    if analyse == "no" and not os.path.isdir(results):
-        log.error(f"specified {results} run folder does not exist, please verify it")
-        raise ValueError(results)
-
-
-def read(parsed_json, output):
+def launch(parsed_json, output):
     mylog = log.getLogger()
     log_file = mylog.handlers[0].baseFilename
     date = (
@@ -42,8 +42,9 @@ def read(parsed_json, output):
         data = json.loads(j.read())
     module = data["general"]["module"]
     config_folder = data["general"]["config"]
+    type = data["general"]["type"]
     tests_folder = module + "_tests"
-    config_file = config_folder + module + "_config.json"
+    config_file = config_folder + module + ".json"
     if not os.path.isfile(config_file):
         log.error(
             f"specified {module} config file does not exist, you need first to create your configfile"
@@ -56,6 +57,8 @@ def read(parsed_json, output):
                 "-vsrA",
                 "--jsonvalue",
                 parsed_json,
+                "-k",
+                type,
                 "--capture",
                 "sys",
                 "--html",
