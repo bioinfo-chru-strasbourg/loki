@@ -9,24 +9,17 @@ import logging as log
 def check_loki_json(parsed_json):
     with open(parsed_json, "r") as j:
         data = json.loads(j.read())
-    if (
-        not data["input"]["noregres1"]
-        and not data["input"]["noregres2"]
-        and data["input"]["analyse"] == "yes"
-    ):
-        log.error(
-            "Cannot launch regression process in case you don't have a first result"
-        )
-        raise ValueError()
-    elif (
-        not data["input"]["noregres1"]
-        or not data["input"]["noregres2"]
-        and data["input"]["analyse"] == "no"
-    ):
-        log.error(
-            "Cannot launch regression process in case you don't have a two results and you don't want any analysis"
-        )
-        raise ValueError()
+    if data["general"]["type"] == "regression":
+        if not data["input"]["reference"]:
+            log.error(
+                "Cannot launch regression process in case you don't have a reference result"
+            )
+            raise ValueError()
+        elif not data["input"]["results"] and data["input"]["analyse"] == "no":
+            log.error(
+                "Cannot launch regression process in case you don't have results and you don't want any analysis"
+            )
+            raise ValueError()
 
 
 def launch(parsed_json, output):
@@ -42,7 +35,7 @@ def launch(parsed_json, output):
         data = json.loads(j.read())
     module = data["general"]["module"]
     config_folder = data["general"]["config"]
-    type = data["general"]["type"]
+    validation_type = data["general"]["type"]
     tests_folder = module + "_tests"
     config_file = config_folder + module + ".json"
     if not os.path.isfile(config_file):
@@ -54,13 +47,13 @@ def launch(parsed_json, output):
         pytest.main(
             [
                 tests_folder,
-                "-vsrA",
+                "-vrA",
                 "--jsonvalue",
                 parsed_json,
                 "-k",
-                type,
+                validation_type,
                 "--capture",
-                "sys",
+                "fd",
                 "--html",
                 f"{output}/logs/{date}_{os.path.splitext(os.path.basename(parsed_json))[0]}.html",
                 "--self-contained-html",
