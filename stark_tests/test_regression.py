@@ -83,7 +83,7 @@ def test_module(loki_config, module_config):
     vcf_comparison(loki_config)
 
 
-def vcf_comparison(loki_config):
+def vcf_comparison(loki_config, module_config):
     d = datetime.datetime.now()
     date = f"{d.strftime('%Y%m%d')}-{d.strftime('%H%M%S')}"
 
@@ -138,80 +138,92 @@ def vcf_comparison(loki_config):
                 f"{sample}/STARK/{sample}.reports/{sample}.final.vcf.gz",
             )
 
-    loki_results = osj(loki_config["general"]["output"], f"LOKI_{date}_{run_name}")
-    reference_vcf = f"ref_{os.path.basename(reference_sample_vcf)}"
-    run_vcf = f"run_{os.path.basename(run_sample_vcf)}"
+        if not os.path.isfile(reference_sample_vcf):
+            log.error(
+                "You're trying to compare two runs with different samples, please check this"
+            )
+            raise ValueError(sample)
 
-    if not os.path.isdir(loki_results):
-        os.mkdir(osj(loki_results))
+        loki_results = osj(loki_config["general"]["output"], f"LOKI_{date}_{run_name}")
+        reference_vcf = f"ref_{os.path.basename(reference_sample_vcf)}"
+        run_vcf = f"run_{os.path.basename(run_sample_vcf)}"
+        run_bed = f"{run_name}.bed"
 
-    shutil.copy(
-        reference_sample_vcf,
-        osj(
-            loki_results,
-            reference_vcf,
-        ),
-    )
-    shutil.copy(
-        run_sample_vcf,
-        osj(
-            loki_results,
-            run_vcf,
-        ),
-    )
-    shutil.copy(run_sample_bed, loki_results)
+        if not os.path.isdir(loki_results):
+            os.mkdir(osj(loki_results))
 
-    reference_sample_vcf = osj(loki_results, reference_vcf)
-    reference_sample_vcf_filtered = osj(loki_results, f"filtered_{reference_vcf}"[:-3])
-    reference_sample_vcf_filtered_zipped = osj(
-        loki_results, f"filtered_{reference_vcf}"
-    )
-    run_sample_vcf = osj(loki_results, run_vcf)
-    run_sample_vcf_filtered = osj(loki_results, f"filtered_{run_vcf}"[:-3])
-    run_sample_vcf_filtered_zipped = osj(loki_results, f"filtered_{run_vcf}")
-    run_sample_bed = osj(loki_results, os.path.basename(run_sample_bed))
+        shutil.copy(
+            reference_sample_vcf,
+            osj(
+                loki_results,
+                reference_vcf,
+            ),
+        )
+        shutil.copy(
+            run_sample_vcf,
+            osj(
+                loki_results,
+                run_vcf,
+            ),
+        )
+        shutil.copy(run_sample_bed, osj(loki_results, run_bed))
 
-    subprocess.run(
-        f"bedtools intersect -header -a {reference_sample_vcf} -b {run_sample_bed} > {reference_sample_vcf_filtered}",
-        shell=True,
-    )
-    subprocess.run(
-        f"bedtools intersect -header -a {run_sample_vcf} -b {run_sample_bed} > {run_sample_vcf_filtered}",
-        shell=True,
-    )
+        reference_sample_vcf = osj(loki_results, reference_vcf)
+        reference_sample_vcf_filtered = osj(
+            loki_results, f"filtered_{reference_vcf}"[:-3]
+        )
+        reference_sample_vcf_filtered_zipped = osj(
+            loki_results, f"filtered_{reference_vcf}"
+        )
+        run_sample_vcf = osj(loki_results, run_vcf)
+        run_sample_vcf_filtered = osj(loki_results, f"filtered_{run_vcf}"[:-3])
+        run_sample_vcf_filtered_zipped = osj(loki_results, f"filtered_{run_vcf}")
+        run_bed = osj(loki_results, run_bed)
 
-    subprocess.run(["bgzip", reference_sample_vcf_filtered])
-    subprocess.run(["bgzip", run_sample_vcf_filtered])
-    subprocess.run(["tabix", reference_sample_vcf_filtered_zipped])
-    subprocess.run(["tabix", run_sample_vcf_filtered_zipped])
+        subprocess.run(
+            f"bedtools intersect -header -a {reference_sample_vcf} -b {run_bed} > {reference_sample_vcf_filtered}",
+            shell=True,
+        )
+        subprocess.run(
+            f"bedtools intersect -header -a {run_sample_vcf} -b {run_bed} > {run_sample_vcf_filtered}",
+            shell=True,
+        )
 
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--name",
-            f"loki_hap_py_{run_name}",
-            "-t",
-            "-w",
-            loki_results,
-            "-v",
-            f"{loki_results}:{loki_results}",
-            "-v",
-            f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
-            "pkrusche/hap.py",
-            "/opt/hap.py/bin/hap.py",
-            reference_sample_vcf_filtered_zipped,
-            run_sample_vcf_filtered_zipped,
-            "-r",
-            loki_config["general"]["genome"],
-            "-o",
-            run_name,
-        ]
-    )
+        subprocess.run(["bgzip", reference_sample_vcf_filtered])
+        subprocess.run(["bgzip", run_sample_vcf_filtered])
+        subprocess.run(["tabix", reference_sample_vcf_filtered_zipped])
+        subprocess.run(["tabix", run_sample_vcf_filtered_zipped])
+
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--name",
+                f"loki_hap_py_{run_name}_{sample}",
+                "-t",
+                "-w",
+                loki_results,
+                "-v",
+                f"{loki_results}:{loki_results}",
+                "-v",
+                f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
+                "pkrusche/hap.py",
+                "/opt/hap.py/bin/hap.py",
+                reference_sample_vcf_filtered_zipped,
+                run_sample_vcf_filtered_zipped,
+                "-r",
+                loki_config["general"]["genome"],
+                "-o",
+                sample,
+            ]
+        )
+
+    if module_config[application][technology][dataset]["run_ref"] != "":
+        print("not empty")
+        # Si une référence existe, alors on va comparer l'échantillon du run_ref + run_new à la référence
 
     def test_regression(loki_config, module_config):
         print(loki_config, module_config)
         # Cas1:Il n'y a pas de référence, on compare alors uniquement les statistiques entre les deux runs sur les samples existants.
         # Cas1:Il y a une référence, on compare alors les deux runs entre eux ainsi que CONTRE la référence pour chacun puis on compare les stats.
-        # Attention, adapter le script de comparaison dans chacune des situations ainsi qu'en prenant en compte la présence de plusieurs vcf.
