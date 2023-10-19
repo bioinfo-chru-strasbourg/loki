@@ -14,12 +14,12 @@ def check_loki_json(parsed_json):
             log.error(
                 "Cannot launch regression process in case you don't have a reference result"
             )
-            raise ValueError()
+            raise ValueError(data["input"]["reference"])
         elif not data["input"]["results"] and data["input"]["analyse"] == "no":
             log.error(
                 "Cannot launch regression process in case you don't have results and you don't want any analysis"
             )
-            raise ValueError()
+            raise ValueError(data["input"]["results"], data["input"]["analyse"])
 
 
 def launch(parsed_json, output):
