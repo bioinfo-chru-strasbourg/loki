@@ -10,16 +10,28 @@ def check_loki_json(parsed_json):
     with open(parsed_json, "r") as j:
         data = json.loads(j.read())
     if data["general"]["type"] == "regression":
-        if not data["input"]["reference"]:
+        if not data["input"]["old_run"] or not os.path.isdir(data["input"]["old_run"]):
             log.error(
                 "Cannot launch regression process in case you don't have a reference result"
             )
-            raise ValueError(data["input"]["reference"])
+            raise ValueError(data["input"]["old_run"])
         elif not data["input"]["results"] and data["input"]["analyse"] == "no":
             log.error(
                 "Cannot launch regression process in case you don't have results and you don't want any analysis"
             )
             raise ValueError(data["input"]["results"], data["input"]["analyse"])
+
+    if not os.path.isfile(data["general"]["genome"]):
+        log.error(
+            "Specified path for genome doesn't exist, please specify path for hg19.fa file"
+        )
+        raise ValueError(data["general"]["genome"])
+    if not os.path.isdir(data["general"]["output"]):
+        log.error("Specified path for output folder doesn't exist")
+        raise ValueError(data["general"]["output"])
+    if data["input"]["results"] != "" and not os.path.isdir(data["input"]["results"]):
+        log.error("Missing results folder")
+        raise ValueError(data["input"]["results"])
 
 
 def launch(parsed_json, output):

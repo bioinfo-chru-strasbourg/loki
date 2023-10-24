@@ -9,6 +9,8 @@ import datetime
 import subprocess
 import re
 
+from tools import bcftools, bedtools, bgzip, tabix
+
 
 def launch_module(loki_config, module_config):
     container = loki_config["general"]["container"]
@@ -46,8 +48,24 @@ def launch_module(loki_config, module_config):
             f"/STARK/output/results/{run_name}",
         ]
     )
+    runs = glob.glob(
+        osj(
+            loki_config["general"]["output"],
+            stark_application.split(".")[0],
+            "*",
+            run_name,
+        )
+    )
+
+    for run in runs:
+        if os.path.basename(run) == run_name:
+            project = os.path.basename(os.path.dirname(run))
+
     return osj(
-        loki_config["general"]["output"], stark_application[:-4], "UNKNOWN", run_name
+        loki_config["general"]["output"],
+        stark_application.split(".")[0],
+        project,
+        run_name,
     )
 
 
@@ -80,7 +98,7 @@ def test_module(loki_config, module_config):
                 log.error("Error in STARK analysis")
                 raise ValueError(error)
 
-    vcf_comparison(loki_config)
+    vcf_comparison(loki_config, module_config)
 
 
 def vcf_comparison(loki_config, module_config):
@@ -92,138 +110,217 @@ def vcf_comparison(loki_config, module_config):
     dataset = loki_config["input"]["dataset"]
     run_name = f"{application}_{technology}_{dataset}"
 
-    results = glob.glob(osj(loki_config["input"]["results"], "*", ""))
-    sample_list = []
-
-    for sample in results:
-        sample_list.append(os.path.basename(os.path.dirname(sample)))
-
-    for sample in sample_list:
-        run_sample_vcf = osj(
+    new_run_vcf = glob.glob(
+        osj(
             loki_config["input"]["results"],
-            f"{sample}/{sample}.reports/{sample}.final.vcf.gz",
+            "STARK.*.variants.Design.vcf.gz",
         )
-        run_sample_bed = osj(
+    )[0]
+    run_bed = osj(
+        loki_config["input"]["results"],
+        f"{module_config[application][technology][dataset]['samples'][0]}/{module_config[application][technology][dataset]['samples'][0]}.bed",
+    )
+    if os.path.isfile(run_bed):
+        if os.stat(run_bed).st_size == 0:
+            run_bed = osj(
+                loki_config["input"]["results"],
+                f"{module_config[application][technology][dataset]['samples'][0]}/{module_config[application][technology][dataset]['samples'][0]}.bwamem.design.bed",
+            )
+    old_run_vcf = glob.glob(
+        osj(
+            loki_config["input"]["old_run"],
+            "STARK.*.variants.Design.vcf.gz",
+        )
+    )[0]
+
+    if not os.path.isfile(run_bed):
+        run_bed = osj(
             loki_config["input"]["results"],
-            f"{sample}/{sample}.bed",
+            f"{module_config[application][technology][dataset]['samples'][0]}/STARK/{module_config[application][technology][dataset]['samples'][0]}.bed",
         )
-        if os.path.isfile(run_sample_bed):
-            if os.stat(run_sample_bed).st_size == 0:
-                run_sample_bed = osj(
-                    loki_config["input"]["results"],
-                    f"{sample}/{sample}.bwamem.design.bed",
-                )
-        reference_sample_vcf = osj(
-            loki_config["input"]["reference"],
-            f"{sample}/{sample}.reports/{sample}.final.vcf.gz",
-        )
-
-        if not os.path.isfile(run_sample_vcf):
-            run_sample_vcf = osj(
+        if os.stat(run_bed).st_size == 0:
+            run_bed = osj(
                 loki_config["input"]["results"],
-                f"{sample}/STARK/{sample}.reports/{sample}.final.vcf.gz",
-            )
-            run_sample_bed = osj(
-                loki_config["input"]["results"],
-                f"{sample}/STARK/{sample}.bed",
-            )
-            if os.stat(run_sample_bed).st_size == 0:
-                run_sample_bed = osj(
-                    loki_config["input"]["results"],
-                    f"{sample}/STARK/{sample}.bwamem.design.bed",
-                )
-        if not os.path.isfile(reference_sample_vcf):
-            reference_sample_vcf = osj(
-                loki_config["input"]["reference"],
-                f"{sample}/STARK/{sample}.reports/{sample}.final.vcf.gz",
+                f"{module_config[application][technology][dataset]['samples'][0]}/STARK/{module_config[application][technology][dataset]['samples'][0]}.bwamem.design.bed",
             )
 
-        if not os.path.isfile(reference_sample_vcf):
-            log.error(
-                "You're trying to compare two runs with different samples, please check this"
-            )
-            raise ValueError(sample)
+    loki_results = osj(loki_config["general"]["output"], f"LOKI_{date}_{run_name}")
+    old_run_vcf_used = f"old_run_{os.path.basename(old_run_vcf)}"
+    new_run_vcf_used = f"new_run_{os.path.basename(new_run_vcf)}"
+    run_bed_used = f"{run_name}.bed"
 
-        loki_results = osj(loki_config["general"]["output"], f"LOKI_{date}_{run_name}")
-        reference_vcf = f"ref_{os.path.basename(reference_sample_vcf)}"
-        run_vcf = f"run_{os.path.basename(run_sample_vcf)}"
-        run_bed = f"{run_name}.bed"
+    if not os.path.isdir(loki_results):
+        os.mkdir(osj(loki_results))
 
-        if not os.path.isdir(loki_results):
-            os.mkdir(osj(loki_results))
+    shutil.copy(
+        old_run_vcf,
+        osj(
+            loki_results,
+            old_run_vcf_used,
+        ),
+    )
+    shutil.copy(
+        new_run_vcf,
+        osj(
+            loki_results,
+            new_run_vcf_used,
+        ),
+    )
+    shutil.copy(run_bed, osj(loki_results, run_bed_used))
 
-        shutil.copy(
-            reference_sample_vcf,
-            osj(
-                loki_results,
-                reference_vcf,
-            ),
-        )
-        shutil.copy(
-            run_sample_vcf,
-            osj(
-                loki_results,
-                run_vcf,
-            ),
-        )
-        shutil.copy(run_sample_bed, osj(loki_results, run_bed))
+    old_run_vcf = osj(loki_results, old_run_vcf_used)
+    old_run_vcf_filtered = osj(loki_results, f"filtered_{old_run_vcf_used}"[:-3])
+    old_run_vcf_filtered_bcf = osj(
+        loki_results, f"filtered_bcf_{old_run_vcf_used}"[:-3]
+    )
+    old_run_vcf_filtered_bcf_zipped = osj(
+        loki_results, f"filtered_bcf_{old_run_vcf_used}"
+    )
+    new_run_vcf = osj(loki_results, new_run_vcf_used)
+    new_run_vcf_filtered = osj(loki_results, f"filtered_{new_run_vcf_used}"[:-3])
+    new_run_vcf_filtered_bcf = osj(
+        loki_results, f"filtered_bcf_{new_run_vcf_used}"[:-3]
+    )
+    new_run_vcf_filtered_bcf_zipped = osj(
+        loki_results, f"filtered_bcf_{new_run_vcf_used}"
+    )
+    run_bed_used = osj(loki_results, run_bed_used)
 
-        reference_sample_vcf = osj(loki_results, reference_vcf)
-        reference_sample_vcf_filtered = osj(
-            loki_results, f"filtered_{reference_vcf}"[:-3]
-        )
-        reference_sample_vcf_filtered_zipped = osj(
-            loki_results, f"filtered_{reference_vcf}"
-        )
-        run_sample_vcf = osj(loki_results, run_vcf)
-        run_sample_vcf_filtered = osj(loki_results, f"filtered_{run_vcf}"[:-3])
-        run_sample_vcf_filtered_zipped = osj(loki_results, f"filtered_{run_vcf}")
-        run_bed = osj(loki_results, run_bed)
+    subprocess.run(
+        f"{bedtools} intersect -header -a {old_run_vcf} -b {run_bed_used} > {old_run_vcf_filtered}",
+        shell=True,
+    )
+    subprocess.run(
+        f"{bedtools} intersect -header -a {new_run_vcf} -b {run_bed_used} > {new_run_vcf_filtered}",
+        shell=True,
+    )
 
-        subprocess.run(
-            f"bedtools intersect -header -a {reference_sample_vcf} -b {run_bed} > {reference_sample_vcf_filtered}",
-            shell=True,
-        )
-        subprocess.run(
-            f"bedtools intersect -header -a {run_sample_vcf} -b {run_bed} > {run_sample_vcf_filtered}",
-            shell=True,
-        )
+    subprocess.run(
+        [
+            bcftools,
+            "annotate",
+            "-x",
+            "FMT/FT",
+            "-o",
+            old_run_vcf_filtered_bcf,
+            old_run_vcf_filtered,
+        ]
+    )
 
-        subprocess.run(["bgzip", reference_sample_vcf_filtered])
-        subprocess.run(["bgzip", run_sample_vcf_filtered])
-        subprocess.run(["tabix", reference_sample_vcf_filtered_zipped])
-        subprocess.run(["tabix", run_sample_vcf_filtered_zipped])
+    subprocess.run(
+        [
+            bcftools,
+            "annotate",
+            "-x",
+            "FMT/FT",
+            "-o",
+            new_run_vcf_filtered_bcf,
+            new_run_vcf_filtered,
+        ]
+    )
 
-        subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "--name",
-                f"loki_hap_py_{run_name}_{sample}",
-                "-t",
-                "-w",
-                loki_results,
-                "-v",
-                f"{loki_results}:{loki_results}",
-                "-v",
-                f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
-                "pkrusche/hap.py",
-                "/opt/hap.py/bin/hap.py",
-                reference_sample_vcf_filtered_zipped,
-                run_sample_vcf_filtered_zipped,
-                "-r",
-                loki_config["general"]["genome"],
-                "-o",
-                sample,
-            ]
-        )
+    subprocess.run([bgzip, old_run_vcf_filtered_bcf])
+    subprocess.run([tabix, old_run_vcf_filtered_bcf_zipped])
+    subprocess.run([bgzip, new_run_vcf_filtered_bcf])
+    subprocess.run([tabix, new_run_vcf_filtered_bcf_zipped])
+
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            f"loki_hap_py_{run_name}_new_run_against_old_run",
+            "-t",
+            "-w",
+            loki_results,
+            "-v",
+            f"{loki_results}:{loki_results}",
+            "-v",
+            f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
+            "hap.py:0.3.15",
+            "/opt/hap.py/bin/hap.py",
+            old_run_vcf_filtered_bcf_zipped,
+            new_run_vcf_filtered_bcf_zipped,
+            "-r",
+            loki_config["general"]["genome"],
+            "-o",
+            "new_run_against_old_run",
+            "--no-roc",
+            "--no-json",
+        ]
+    )
+    os.remove(old_run_vcf_filtered)
+    os.remove(new_run_vcf_filtered)
 
     if module_config[application][technology][dataset]["run_ref"] != "":
-        print("not empty")
-        # Si une référence existe, alors on va comparer l'échantillon du run_ref + run_new à la référence
+        ref = module_config[application][technology][dataset]["ref"]
+        run_ref = module_config[application][technology][dataset]["run_ref"]
+        ref_file = osj(
+            module_config["general"]["inner_dataset_folder"], "references", ref
+        )
+        old_run_vcf = osj(
+            loki_config["input"]["old_run"], run_ref, f"{run_ref}.final.vcf.gz"
+        )
+        new_run_vcf = osj(
+            loki_config["input"]["results"], run_ref, f"{run_ref}.final.vcf.gz"
+        )
+        print(ref, run_ref, ref_file, old_run_vcf, new_run_vcf)
+    #     subprocess.run(
+    #         [
+    #             "docker",
+    #             "run",
+    #             "--rm",
+    #             "--name",
+    #             f"loki_hap_py_{run_name}_old_run_against_ref",
+    #             "-t",
+    #             "-w",
+    #             loki_results,
+    #             "-v",
+    #             f"{loki_results}:{loki_results}",
+    #             "-v",
+    #             f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
+    #             "hap.py:0.3.15",
+    #             "/opt/hap.py/bin/hap.py",
+    #             "a",
+    #             reference_sample_vcf_filtered_bcf_zipped,
+    #             "-r",
+    #             loki_config["general"]["genome"],
+    #             "-o",
+    #             "old_run_against_ref",
+    #             "--no-roc",
+    #             "--no-json",
+    #         ]
+    #     )
+    #     subprocess.run(
+    #         [
+    #             "docker",
+    #             "run",
+    #             "--rm",
+    #             "--name",
+    #             f"loki_hap_py_{run_name}_new_run_against_ref",
+    #             "-t",
+    #             "-w",
+    #             loki_results,
+    #             "-v",
+    #             f"{loki_results}:{loki_results}",
+    #             "-v",
+    #             f"{os.path.dirname(loki_config['general']['genome'])}:{os.path.dirname(loki_config['general']['genome'])}",
+    #             "hap.py:0.3.15",
+    #             "/opt/hap.py/bin/hap.py",
+    #             "a",
+    #             run_sample_vcf_filtered_bcf_zipped,
+    #             "-r",
+    #             loki_config["general"]["genome"],
+    #             "-o",
+    #             "new_run_against_ref",
+    #             "--no-roc",
+    #             "--no-json",
+    #         ]
+    #     )
 
     def test_regression(loki_config, module_config):
         print(loki_config, module_config)
         # Cas1:Il n'y a pas de référence, on compare alors uniquement les statistiques entre les deux runs sur les samples existants.
         # Cas1:Il y a une référence, on compare alors les deux runs entre eux ainsi que CONTRE la référence pour chacun puis on compare les stats.
+        # Peut-être utiliser la possibilité d'utiliser le vcf global du run ?
