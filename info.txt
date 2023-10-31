@@ -1,0 +1,68 @@
+Recall = TP/(TP+FN)
+Precision = TP/(TP+FP)
+Frac_NA = UNK/total(query)
+F1_Score = 2 * Precision * Recall / (Precision + Recall)
+
+true-positives (TP) : variants/genotypes that match in truth and query.
+false-positives (FP) : variants that have mismatching genotypes or alt alleles, as well as query variant calls in regions a truth set would call confident hom-ref regions.
+false-negatives (FN) : variants present in the truth set, but missed in the query.
+non-assessed calls (UNK) : variants outside the truth set regions
+
+Subtype	Description
+*	Aggregate numbers for all subtypes
+ti or tv	Transitions and transversions for SNPs
+I1_5	Insertions of length 1-5
+I6_15	Insertions of length 6-15
+I16_PLUS	Insertions of length 16 or more
+D1_5	Deletions of length 1-5
+D6_15	Deletions of length 6-15
+D16_PLUS	Deletions of length 16 or more
+C1_5	Complex variants of length 1-5
+C6_15	Complex variants of length 6-15
+C16_PLUS	Complex variants of length 16 or more
+
+Genotype	Description
+*	Aggregate numbers for all genotypes
+het	only heterozygous variant calls (0/1 or similar genotypes)
+homalt	only homozygous alternative variant calls (1/1 or similar genotypes)
+hetalt	only heterozygous alternative variant calls (1/2 or similar genotypes)
+
+tratification Column	Description
+Type	Variant type (SNP / INDEL)
+Subtype	Variant Subtype (ti/tv/indel length, see above
+Subset	Subset of the genome/stratification region
+Filter	Variant filters: PASS, SEL, ALL, or a particular filter from the query VCF
+Genotype	Genotype of benchmarked variants (het / homalt / hetalt)
+QQ.Field	Which field from the original VCF was used to produce QQ values in truth and query
+QQ	QQ threshold for ROC values
+
+Metric Column	Description
+METRIC.Recall	Recall for truth variant representation = TRUTH.TP / (TRUTH.TP + TRUTH.FN)
+METRIC.Precision	Precision of query variants = QUERY.TP / (QUERY.TP + QUERY.FP)
+METRIC.Frac_NA	Fraction of non-assessed query calls = QUERY.UNK / QUERY.TOTAL
+METRIC.F1_Score	Harmonic mean of precision and recall = 2METRIC.RecallMetric.Precision/(METRIC.Recall + METRIC.Precision)
+TRUTH.TOTAL	Total number of truth variants
+TRUTH.TP	Number of true-positive calls in truth representation (counted via the truth sample column)
+TRUTH.FN	Number of false-negative calls = calls in truth without matching query call
+QUERY.TOTAL	Total number of query calls
+QUERY.TP	Number of true positive calls in query representation (counted via the query sample column)
+QUERY.FP	Number of false-positive calls in the query file (mismatched query calls within the confident regions)
+QUERY.UNK	Number of query calls outside the confident regions
+FP.gt	Number of genotype mismatches (alleles match, but different zygosity)
+FP.al	Number of allele mismatches (variants matched by position and not by haplotype)
+TRUTH.TOTAL.TiTv_ratio	Transition / Transversion ratio for all truth variants
+TRUTH.TOTAL.het_hom_ratio	Het/Hom ratio for all truth variants
+TRUTH.FN.TiTv_ratio	Transition / Transversion ratio for false-negative variants
+TRUTH.FN.het_hom_ratio	Het/Hom ratio for false-negative variants
+TRUTH.TP.TiTv_ratio	Transition / Transversion ratio for true positive variants
+TRUTH.TP.het_hom_ratio	Het/Hom ratio for true positive variants
+QUERY.FP.TiTv_ratio	Transition / Transversion ratio for false positive variants
+QUERY.FP.het_hom_ratio	Het/Hom ratio for false-positive variants
+QUERY.TOTAL.TiTv_ratio	Transition / Transversion ratio for all query variants
+QUERY.TOTAL.het_hom_ratio	Het/Hom ratio for all query variants
+QUERY.TP.TiTv_ratio	Transition / Transversion ratio for true positive variants (query representation)
+QUERY.TP.het_hom_ratio	Het/Hom ratio for true positive variants (query representation)
+QUERY.UNK.TiTv_ratio	Transition / Transversion ratio for unknown variants
+QUERY.UNK.het_hom_ratio	Het/Hom ratio for unknown variants
+Subset.Size	When using stratification regions, this gives the number of nucleotides contained in the current subset
+Subset.IS_CONF.Size	This gives the number of confident bases (-f regions) in the current subset

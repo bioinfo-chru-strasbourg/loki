@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import pytest
 import glob
 import shutil
 from os.path import join as osj
@@ -24,12 +23,12 @@ def test_module(loki_config, module_config):
             osj(loki_config["input"]["results"], "STARK.*.analysis.log")
         )
         # Checking if the STARK result is healthy (*** missing form the log)
+        log.info("Checking if results are healthy")
         if len(stark_log_files) == 0:
             log.error(
                 "Not found any log in the folder, please check results folder accessibility in your json"
             )
             raise ValueError(stark_log_files)
-
         for stark_log_file in stark_log_files:
             grep_result = subprocess.run(
                 [
@@ -45,8 +44,11 @@ def test_module(loki_config, module_config):
             if error != "":
                 log.error("Error in STARK analysis")
                 raise ValueError(error)
+        log.info(
+            "No error in STARK analysis, proceeding to vcf comparison for each sample"
+        )
 
-    # vcf_comparison(loki_config, module_config)
+    vcf_comparison(loki_config, module_config)
 
 
 def launch_module(loki_config, module_config):
@@ -64,6 +66,11 @@ def launch_module(loki_config, module_config):
 
     run_name = f"{application}_{technology}_{dataset}"
     run_path = osj(dataset_folder, application, technology, dataset)
+    log.info(f"Launching STARK in {output}")
+    log.info(f"Run name : {run_name}")
+    log.info(f"Data path : {run_path}")
+    log.info(f"Container : {container}")
+    log.info(f"STARK application : {stark_application}")
     subprocess.run(
         [
             "docker",
@@ -77,6 +84,7 @@ def launch_module(loki_config, module_config):
         ]
     )
     # Deleting result folder from the CLI
+    log.info(f"Deleting results folder inside the running container {container}")
     subprocess.run(
         [
             "docker",
@@ -100,6 +108,8 @@ def launch_module(loki_config, module_config):
     for run in runs:
         if os.path.basename(run) == run_name:
             project = os.path.basename(os.path.dirname(run))
+
+    log.info(f"STARK analysis for {run_name} finished")
 
     return osj(
         loki_config["general"]["output"],
@@ -137,12 +147,12 @@ def vcf_comparison(loki_config, module_config):
     run_name = f"{application}_{technology}_{dataset}"
     global loki_results
     loki_results = osj(loki_config["general"]["output"], f"LOKI_{date}_{run_name}")
+    log.info(f"Results for LOKI validator in {loki_results}")
 
     # Looking for all sample names
     sample_list = []
     sample_list = glob.glob(osj(loki_config["input"]["results"], "*", ""))
-    sample_list_old = glob.glob(osj(loki_config["input"]["old_run"], "*", ""))
-
+    log.info(f"Samples : {sample_list}")
     useful_sample = os.path.basename(sample_list[0][:-1])
 
     # Looking for a bed file for futur comparison
@@ -169,16 +179,19 @@ def vcf_comparison(loki_config, module_config):
             )
 
     run_bed_used = f"{run_name}.bed"
+    log.info(f"Bed : {run_bed} renamed as {run_bed_used}")
 
     if not os.path.isdir(loki_results):
         os.mkdir(osj(loki_results))
 
     shutil.copy(run_bed, osj(loki_results, run_bed_used))
     run_bed_used = osj(loki_results, run_bed_used)
+    log.info("Copied the bed into processing folder")
 
     # Launching the process for each sample
     for sample in sample_list:
         sample = os.path.basename(sample[:-1])
+        log.info(f"VCF comparison for {sample}")
         # Taking the vcf file for the loop sample from results or repository for the new run
         new_run_vcf = osj(
             loki_config["input"]["results"],
@@ -201,11 +214,21 @@ def vcf_comparison(loki_config, module_config):
                 f"{sample}/{sample}.final.vcf.gz",
             )
 
+        if not os.path.isfile(old_run_vcf):
+            log.error(
+                f"Missing {old_run_vcf} in results folder, please check STARK folder"
+            )
+        if not os.path.isfile(new_run_vcf):
+            log.error(
+                f"Missing {new_run_vcf} in results folder, please check STARK folder"
+            )
+
         # Defining name to identify vcf
         old_run_vcf_used = f"old_run_{os.path.basename(old_run_vcf)}"
         new_run_vcf_used = f"new_run_{os.path.basename(new_run_vcf)}"
 
         # Copying vcf and bed for the loop sample inside the results folder
+        log.info("Copying the 2 vcf for comparison")
         shutil.copy(
             old_run_vcf,
             osj(
@@ -237,10 +260,14 @@ def vcf_comparison(loki_config, module_config):
         new_run_vcf_filtered_bcf = new_run_vcf_filtered_bcf_zipped[:-3]
 
         # Bedtools intersect to only take variants in the run design
+        log.info(
+            f"Intersecting {os.path.basename(old_run_vcf)} and {os.path.basename(new_run_vcf)} on {os.path.basename(run_bed_used)}"
+        )
         bedtools_intersect(old_run_vcf, run_bed_used, old_run_vcf_filtered)
         bedtools_intersect(new_run_vcf, run_bed_used, new_run_vcf_filtered)
 
         # Bcftools to delete FT field causing problem for happy
+        log.info("Deleting FT field in INFO column")
         bcftools_annotate(old_run_vcf_filtered, old_run_vcf_filtered_bcf)
         bcftools_annotate(new_run_vcf_filtered, new_run_vcf_filtered_bcf)
 
@@ -252,7 +279,9 @@ def vcf_comparison(loki_config, module_config):
 
         if not os.path.isdir(osj(loki_results, sample)):
             os.mkdir(osj(loki_results, sample))
-
+        log.info(
+            f"Launching hap.py with {os.path.dirname(loki_config['general']['genome'])}"
+        )
         subprocess.run(
             [
                 "docker",
@@ -283,7 +312,7 @@ def vcf_comparison(loki_config, module_config):
                 "hg19",
             ]
         )
-
+        log.info("Cleaning results folder")
         os.remove(old_run_vcf_filtered)
         os.remove(new_run_vcf_filtered)
         sample_files = glob.glob(osj(loki_results, f"*{sample}*"))
@@ -292,16 +321,18 @@ def vcf_comparison(loki_config, module_config):
 
 
 def test_metrics(loki_config, module_config):
-    loki_results = osj(
-        loki_config["general"]["output"],
-        "LOKI_20231030-173402_tiny_monosample_dataset1",
-    )
     loki_samples = glob.glob(osj(loki_results, "*", ""))
     for result in loki_samples:
         result = os.path.basename(result[:-1])
-        log.info(f"Checking metrics for {result}")
+        log.info(
+            f"Checking metrics for {result} with sensibility={module_config['metrics']['sensibility']} and PPV={module_config['metrics']['precision']}"
+        )
         df = pd.read_csv(osj(loki_results, result, f"{result}.summary.csv"))
         all_row = df[df["Filter"] == "ALL"].index.values
         for i in all_row:
-            print(i)
-        # assert df.loc[all_row, "METRIC.Recall"].item() == 1.0
+            assert int(df.loc[i, "METRIC.Recall"].item()) == int(
+                module_config["metrics"]["sensibility"]
+            )
+            assert int(df.loc[i, "METRIC.Precision"].item()) == int(
+                module_config["metrics"]["precision"]
+            )
