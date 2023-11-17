@@ -1,0 +1,18 @@
+{
+    "general": {
+        "module": "stark",
+        "container": "",
+        "type": "validation",
+        "genome": "/home1/data/STARK/databases/genomes/current/hg19.fa",
+        "output": "/home1/data/STARK/data/validation/",
+        "config": "/home1/data/STARK/config/qualitycontrol/loki/stark_validation.json"
+    },
+    "input": {
+        "application": "",
+        "technology": "",
+        "dataset": "",
+        "analyse": "",
+        "results": "/home1/data/STARK/data/validation/SOMATIC/UNKNOWN/tiny_multisample_dataset1/",
+        "old_run": ""
+    }
+}
